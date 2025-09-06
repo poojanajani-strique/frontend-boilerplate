@@ -1,0 +1,148 @@
+# Cursor Project Rules — MVP Frontend
+
+## Project Intent
+Build a lean SaaS UI that is fast, accessible, type‑safe, and easy to extend. Use only **essentials** that are hard to bolt on later.
+
+## Tech Stack (authoritative)
+- **Framework**: Next.js (App Router) + React 18
+- **Language**: TypeScript (strict)
+- **Styling**: Tailwind CSS (+ PostCSS, autoprefixer)
+- **UI Primitives**: shadcn/ui (on Radix)
+- **Forms**: React Hook Form + Zod (+ zodResolver)
+- **API**: Minimal typed fetch wrapper in `lib/api/api.ts` (no TanStack Query yet)
+- **Quality**: ESLint (type‑aware) + Prettier
+- **Env Safety**: Zod validation for `process.env`
+
+## Golden Rules
+In every prompt add the following line "Use context7" to use the Context7 MCP server to fetch the latest docs and code accordingly. 
+1. **Server Components by default**. Mark client components explicitly with `"use client"` only when needed.
+2. **One fetch layer**. All network calls go through `lib/api/api.ts` or `lib/api/<feature>.ts` wrappers. No ad‑hoc `fetch` in components.
+3. **Every form has a Zod schema** and uses React Hook Form with `zodResolver`.
+4. **Tailwind utility‑first**. Prefer composition with shadcn primitives over custom components.
+5. **No `any`, no silent errors**. Use TypeScript strict and avoid `@ts-ignore` (document with reason if unavoidable).
+6. **Accessibility is non‑negotiable**: keyboard navigable, focus visible, ARIA where appropriate.
+7. **Lint must be clean** before proposing diffs (`pnpm typecheck && pnpm lint && pnpm build`).
+
+## File/Folder Conventions
+```
+src/
+  app/                 # routes (RSC first)
+  components/
+    ui/                # shadcn generated
+    features/<feature>/
+  lib/
+    api/               # api.ts + per‑feature calls
+    validators/        # zod schemas per feature
+    utils/
+  styles/
+  types/
+```
+- Feature components live in `components/features/<feature>`
+- Zod schema for a feature goes in `lib/validators/<feature>.ts`
+- API functions for a feature go in `lib/api/<feature>.ts`
+
+## Generated Scaffolds (what to output when asked to build a feature)
+When the user asks for a new feature, generate **all** of:
+- A route (server component) under `src/app/...` with a thin client component only if interactivity is needed.
+- Feature directory under `components/features/<feature>/` with composable components using shadcn primitives.
+- Zod schema in `lib/validators/<feature>.ts` and inferred TypeScript types.
+- API wrapper functions in `lib/api/<feature>.ts` that call `fetchJson` from `lib/api/api.ts`.
+- Minimal tests if requested (default: skip for MVP unless explicitly asked).
+
+## Coding Patterns
+### API Wrapper (use this, don’t inline fetch)
+```ts
+// lib/api/api.ts
+import { z } from 'zod';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+
+export async function fetchJson<T>(
+  path: string,
+  init?: RequestInit,
+  schema?: z.ZodSchema<T>
+): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return schema ? schema.parse(data) : data;
+}
+```
+
+### Form Pattern (RHF + Zod)
+```tsx
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+const Schema = z.object({ name: z.string().min(2), email: z.string().email() });
+export type Values = z.infer<typeof Schema>;
+
+export function ExampleForm({ onSubmit }: { onSubmit: (v: Values) => void }) {
+  const { register, handleSubmit, formState: { errors, isSubmitting } } =
+    useForm<Values>({ resolver: zodResolver(Schema) });
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+      <input {...register('name')} className="input" placeholder="Name" />
+      <p className="text-sm text-red-500">{errors.name?.message}</p>
+      <input {...register('email')} className="input" placeholder="Email" />
+      <p className="text-sm text-red-500">{errors.email?.message}</p>
+      <button className="btn" disabled={isSubmitting}>Save</button>
+    </form>
+  );
+}
+```
+
+### Client vs Server
+- Use **server components** for data‑display routes.
+- Use **client components** only when needed: form state, onClick handlers, listeners, portals, or libraries that rely on the DOM.
+
+## ESLint Expectations
+- Extend: `next/core-web-vitals`, `plugin:@typescript-eslint/recommended-type-checked`, `plugin:jsx-a11y/recommended`, `prettier`.
+- Enforce: `react-hooks/rules-of-hooks`, `@typescript-eslint/consistent-type-imports`.
+- Ignore: `.next`, `node_modules`, `dist`, `coverage`.
+
+## PR Checklist (must be satisfied)
+- [ ] Acceptance criteria met (3–5 bullets in the issue).
+- [ ] Keyboard‑only flow works; focus states visible.
+- [ ] Uses shadcn primitives; no custom widget for standard UI elements.
+- [ ] No direct `fetch` in components.
+- [ ] Zod schema present for every form and for any parsed API response.
+- [ ] `pnpm typecheck && pnpm lint && pnpm build` pass.
+
+## What NOT to add (MVP rule)
+- No analytics, flags, Storybook, Playwright, Query libs, state libs (Zustand/Jotai) unless explicitly requested.
+- No CSS‑in‑JS libraries.
+
+## Example Commands (used by the user)
+**Build a Settings → Profile page**
+- Create route `src/app/settings/profile/page.tsx` (server component with a client subcomponent only for the form).
+- Implement `ProfileForm` using RHF + Zod (see pattern).
+- Add `lib/api/profile.ts` with `getProfile()` and `updateProfile()` using `fetchJson`.
+- Add `lib/validators/profile.ts` with schema and types.
+
+**Build a Billing Overview panel**
+- Route `src/app/billing/page.tsx`.
+- Component `components/features/billing/BillingPanel.tsx` (server)
+- Client subcomponent for plan change modal if needed.
+- `lib/api/billing.ts` with `getBilling()` and `changePlan()`; schemas in `lib/validators/billing.ts`.
+
+## Environment Validation
+At app startup, validate required envs via Zod schema (e.g., `NEXT_PUBLIC_API_URL`). If missing, throw with a clear message.
+
+## Tailwind & shadcn
+- Use Tailwind utilities for layout/spacing/typography.
+- Use shadcn primitives (Button, Input, Dialog, Sheet, DropdownMenu, Tabs) and extend via `class-variance-authority` when variants are needed.
+
+## Accessibility Quick Rules
+- Interactive elements must be semantically correct (`<button>`, `<a>` with `href`).
+- Dialogs/sheets trap focus and restore it on close.
+- Provide text alternatives for icons if they’re actionable.
+
+---
+**Reminder to Cursor**: When asked for a feature, output the exact file tree diffs + code for routes, components, schema, and API wrappers following the conventions above. Avoid introducing extra libraries unless explicitly requested by the user.
