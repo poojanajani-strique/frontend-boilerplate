@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Frontend Boilerplate
 
 A modern, accessible, and type-safe frontend boilerplate built with Next.js, TypeScript, Tailwind CSS, and shadcn/ui. This boilerplate follows strict patterns and conventions to ensure consistency across all your projects.
@@ -242,3 +243,7 @@ The app is a standard Next.js application and can be deployed to:
 ## 📄 License
 
 MIT License - feel free to use this boilerplate for your projects!
+=======
+# frontend-boilerplate
+This is my front end boilerplate code.
+>>>>>>> 6e582f457b9ea9245fc066156933cf454d7202d1
